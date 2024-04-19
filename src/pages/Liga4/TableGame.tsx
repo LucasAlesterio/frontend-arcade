@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { CiCirclePlus } from "react-icons/ci";
 import { FaCopy } from "react-icons/fa";
 import { TbLogout, TbSettings } from "react-icons/tb";
 import { useLocation } from "react-router-dom";
 import { tv } from "tailwind-variants";
 import Modal from "../../components/Modal";
-import { Player } from "../../entities/Player";
 import { useMicroAuth } from "../../hooks/useMicroAuth";
-import { socket } from "../../socket";
 import { transpose } from "../../utils/matrix";
+import { Table } from "../../entities/Table";
+import { useCaseContext } from "../../context";
 
 const NUMBER_ROWS = 7;
 const NUMBER_COLUMNS = 6;
@@ -24,7 +24,7 @@ const piece = tv({
   },
 });
 
-const emptyTable: Player[][] = Array(NUMBER_ROWS)
+const emptyTable: Table = Array(NUMBER_ROWS)
   .fill(null)
   .map(() => Array(NUMBER_COLUMNS).fill(null));
 
@@ -32,68 +32,52 @@ function TableGame() {
   const [currentTable, setCurrentTable] = useState(emptyTable);
   const { logout } = useMicroAuth();
   const { state: roomId } = useLocation();
-
-  function getTable() {
-    socket.emit("getTable");
-  }
-
-  function restart() {
-    socket.emit("restart");
-  }
+  const {
+    getTableUseCase,
+    restartUseCase,
+    addPieceUseCase,
+    gameListenersUseCase,
+    getSocketId,
+  } = useContext(useCaseContext);
 
   const isPlayerOne = (id?: string) => {
     if (!id) return "empty";
-    if (id === socket.id) return 1;
+    if (id === getSocketId()) return 1;
     return 2;
   };
 
-  function addPiece(row: number) {
-    socket.emit("addPiece", row);
-  }
-
   useEffect(() => {
-    function onDisconnect() {
+    gameListenersUseCase.setOnPlayerJoinedCallback((player) =>
+      alert(`O jogador ${player.Name} acabou de entrar!`)
+    );
+
+    gameListenersUseCase.setOnErrorCallback((errorMessage) =>
+      alert(`ERROR: ${errorMessage}`)
+    );
+
+    gameListenersUseCase.setOnYouJoinedCallback(() =>
+      getTableUseCase.execute()
+    );
+
+    gameListenersUseCase.setOnTableCallback((value: Table) => {
+      setCurrentTable([...value]);
+    });
+
+    gameListenersUseCase.setOnYouLoseCallback(() => {
+      alert("Ops, você perdeu!");
+    });
+
+    gameListenersUseCase.setOnYouWimCallback(() => {
+      alert("Parabéns, você ganhou!");
+    });
+
+    gameListenersUseCase.setOnDisconnectCallback(() => {
       setCurrentTable(emptyTable);
       alert("Você acaba de se desconectar!");
-    }
-
-    function onTable(value: Player[][]) {
-      setCurrentTable([...value]);
-    }
-
-    function onPlayerJoined(player: Player) {
-      if (player.Id !== socket.id) {
-        alert(`O jogador ${player.Name} acabou de entrar!`);
-      } else {
-        getTable();
-      }
-    }
-
-    function onError(message: string) {
-      console.error(message);
-      alert(message);
-    }
-
-    function onWinner(player: Player) {
-      if (player.Id === socket.id) {
-        alert("Parabéns, você ganhou!");
-      } else {
-        alert("Ops, você perdeu!");
-      }
-    }
-
-    socket.on("disconnect", onDisconnect);
-    socket.on("error", onError);
-    socket.on("winner", onWinner);
-    socket.on("table", onTable);
-    socket.on("playerJoined", onPlayerJoined);
+    });
 
     return () => {
-      socket.off("disconnect", onDisconnect);
-      socket.off("error", onError);
-      socket.off("table", onTable);
-      socket.off("playerJoined", onPlayerJoined);
-      socket.off("winner", onWinner);
+      gameListenersUseCase.off();
     };
   }, []);
 
@@ -132,7 +116,7 @@ function TableGame() {
             </li>
             <li>
               <button
-                onClick={() => restart()}
+                onClick={() => restartUseCase.execute()}
                 title="Logout"
                 className="px-2 rounded flex items-center hover:bg-gray-800"
               >
@@ -161,7 +145,7 @@ function TableGame() {
                 className="w-full flex justify-center items-center"
               >
                 <button
-                  onClick={() => addPiece(index)}
+                  onClick={() => addPieceUseCase.execute(index)}
                   className="hover:text-gray-500"
                 >
                   <CiCirclePlus size={36} />

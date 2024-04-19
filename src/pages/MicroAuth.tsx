@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMicroAuth } from "../hooks/useMicroAuth";
-import { socket } from "../socket";
 import Button from "../components/Button";
 
 export default function MicroAuth() {
@@ -9,11 +8,6 @@ export default function MicroAuth() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (socket.connected) {
-      socket.emit("createPlayer", name);
-    } else {
-      alert("Tivemos um problema de conexão, tente novamente!");
-    }
     login(name);
   }
 

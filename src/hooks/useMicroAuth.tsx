@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo } from "react";
-import { useLocalUser } from "./useLocalUser";
 import { useNavigate } from "react-router-dom";
-import { socket } from "../socket";
+import { useCaseContext } from "../context";
+import { useLocalUser } from "./useLocalUser";
 
 interface Props {
   children: React.ReactNode;
@@ -22,16 +22,18 @@ const AuthContext = createContext<PropsContext>({
 export const MicroAuthProvider = ({ children }: Props) => {
   const [user, setUser] = useLocalUser();
   const navigate = useNavigate();
+  const { createPlayerUseCase, removePlayerUseCase } =
+    useContext(useCaseContext);
 
   const login = async (userName: string) => {
+    createPlayerUseCase.execute(userName);
     setUser(userName);
     navigate("/", { replace: true });
   };
 
   const logout = () => {
+    removePlayerUseCase.execute();
     setUser(null);
-    socket.disconnect();
-    socket.connect();
     navigate("/login", { replace: true });
   };
 

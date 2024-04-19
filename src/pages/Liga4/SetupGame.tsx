@@ -1,24 +1,25 @@
-import { useEffect, useState } from "react";
-import { socket } from "../../socket";
+import { useContext, useEffect, useState } from "react";
 import { TabNavigation } from "./components/TabButton";
 import Button from "../../components/Button";
 import { FaCopy } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { Player } from "../../entities/Player";
+import { useCaseContext } from "../../context";
 
 function SetupGame() {
   const [textRoom, setTextRoom] = useState("");
   const [roomId, setRoomId] = useState("");
   const [typeSetup, setTypeSetup] = useState<"create" | "join">("join");
   const navigate = useNavigate();
+  const { createRoomUseCase, joinRoomUseCase, gameListenersUseCase } =
+    useContext(useCaseContext);
 
   function createRoom() {
-    socket.emit("createRoom");
+    createRoomUseCase.execute();
   }
 
   function joinRoom() {
     setRoomId(textRoom);
-    socket.emit("joinRoom", textRoom);
+    joinRoomUseCase.execute(textRoom);
   }
 
   function navigateToGame() {
@@ -26,10 +27,8 @@ function SetupGame() {
   }
 
   useEffect(() => {
-    function onPlayerJoined(player: Player) {
-      if (player.Id === socket.id) {
-        navigateToGame();
-      }
+    function onPlayerJoined() {
+      navigateToGame();
     }
 
     function onDisconnect() {
@@ -47,16 +46,13 @@ function SetupGame() {
       alert(message);
     }
 
-    socket.on("disconnect", onDisconnect);
-    socket.on("error", onError);
-    socket.on("roomCreated", onRoomCreated);
-    socket.on("playerJoined", onPlayerJoined);
+    gameListenersUseCase.setOnDisconnectCallback(onDisconnect);
+    gameListenersUseCase.setOnErrorCallback(onError);
+    gameListenersUseCase.setOnYouJoinedCallback(onPlayerJoined);
+    gameListenersUseCase.setOnRoomCreatedCallback(onRoomCreated);
 
     return () => {
-      socket.off("disconnect", onDisconnect);
-      socket.off("error", onError);
-      socket.off("roomCreated", onRoomCreated);
-      socket.off("playerJoined", onPlayerJoined);
+      gameListenersUseCase.off();
     };
   }, [roomId]);
 
